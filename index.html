@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GLS Field Timer</title>
+<style>
+  :root {
+    --navy: #1B2A4A;
+    --navy-light: #243557;
+    --green: #16A34A;
+    --green-light: #DCFCE7;
+    --red: #DC2626;
+    --red-light: #FEE2E2;
+    --amber: #D97706;
+    --amber-light: #FEF3C7;
+    --slate: #64748B;
+    --slate-light: #F1F5F9;
+    --white: #FFFFFF;
+    --border: #E2E8F0;
+    --text: #0F172A;
+    --text-muted: #94A3B8;
+    --pickup: #7C3AED;
+    --pickup-light: #EDE9FE;
+    --radius: 14px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.10);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--slate-light);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--navy);
+    color: white;
+    padding: 14px 16px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .header-logo {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .header-logo span { color: #F59E0B; }
+  .header-status {
+    font-size: 11px;
+    color: #94A3B8;
+    text-align: right;
+    line-height: 1.4;
+  }
+  .header-status b { color: white; }
+
+  /* ── SCREENS ── */
+  .screen { display: none; padding: 16px; max-width: 480px; margin: 0 auto; }
+  .screen.active { display: block; }
+
+  /* ── SETUP SCREEN ── */
+  .setup-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--navy);
+    margin-bottom: 4px;
+  }
+  .setup-sub {
+    font-size: 13px;
+    color: var(--slate);
+    margin-bottom: 20px;
+  }
+  .field-group { margin-bottom: 14px; }
+  .field-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--slate);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 5px;
+  }
+  .field-input {
+    width: 100%;
+    padding: 13px 14px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    font-size: 16px;
+    font-family: inherit;
+    background: white;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field-input:focus { border-color: var(--navy); }
+
+  .btn-start {
+    width: 100%;
+    padding: 17px;
+    background: var(--navy);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+    letter-spacing: 0.2px;
+    transition: transform 0.1s, background 0.15s;
+    -webkit-user-select: none;
+  }
+  .btn-start:active { transform: scale(0.98); background: var(--navy-light); }
+
+  /* ── GIRO SCREEN ── */
+  .session-bar {
+    background: white;
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .session-pill {
+    background: var(--slate-light);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+  .session-pill span { color: var(--slate); font-weight: 400; }
+
+  /* ── FASE BADGE ── */
+  .fase-badge {
+    text-align: center;
+    padding: 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    letter-spacing: 0.3px;
+  }
+  .fase-badge.attesa { background: var(--slate-light); color: var(--slate); }
+  .fase-badge.partenza { background: var(--navy); color: white; }
+  .fase-badge.in-giro { background: var(--green-light); color: var(--green); }
+  .fase-badge.stop-open { background: var(--amber-light); color: var(--amber); }
+  .fase-badge.rientrato { background: var(--navy); color: white; }
+
+  /* ── LIVE STATS ── */
+  .live-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .stat-card {
+    background: white;
+    border-radius: 10px;
+    padding: 10px 8px;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .stat-val { font-size: 22px; font-weight: 800; color: var(--navy); line-height: 1; }
+  .stat-lbl { font-size: 10px; color: var(--slate); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  /* ── PULSANTE PRINCIPALE ── */
+  .big-btn {
+    width: 100%;
+    padding: 22px 16px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 20px;
+    font-weight: 800;
+    cursor: pointer;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: transform 0.08s, filter 0.1s;
+    -webkit-user-select: none;
+    box-shadow: var(--shadow);
+    line-height: 1.2;
+    letter-spacing: -0.3px;
+  }
+  .big-btn:active { transform: scale(0.97); filter: brightness(0.93); }
+  .big-btn.green { background: var(--green); color: white; }
+  .big-btn.red { background: var(--red); color: white; }
+  .big-btn.amber { background: var(--amber); color: white; }
+  .big-btn.navy { background: var(--navy); color: white; }
+  .big-btn.purple { background: var(--pickup); color: white; }
+  .big-btn.disabled { background: #CBD5E1; color: #94A3B8; pointer-events: none; }
+
+  /* ── RIGA BOTTONI SECONDARI ── */
+  .btn-row { display: grid; gap: 8px; margin-bottom: 10px; }
+  .btn-row.two { grid-template-columns: 1fr 1fr; }
+  .btn-row.three { grid-template-columns: 1fr 1fr 1fr; }
+
+  .sm-btn {
+    padding: 15px 10px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    transition: transform 0.08s;
+    -webkit-user-select: none;
+    box-shadow: var(--shadow);
+    line-height: 1.1;
+  }
+  .sm-btn:active { transform: scale(0.96); }
+  .sm-btn .sm-icon { font-size: 22px; }
+  .sm-btn.green { background: var(--green); color: white; }
+  .sm-btn.red { background: var(--red); color: white; }
+  .sm-btn.purple { background: var(--pickup); color: white; }
+  .sm-btn.ghost {
+    background: white;
+    color: var(--slate);
+    border: 2px solid var(--border);
+    font-size: 13px;
+  }
+
+  /* ── STOP TIMER ── */
+  .stop-timer {
+    background: var(--amber-light);
+    border: 2px solid var(--amber);
+    border-radius: var(--radius);
+    padding: 14px;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .stop-timer-label { font-size: 12px; font-weight: 700; color: var(--amber); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stop-timer-clock { font-size: 42px; font-weight: 900; color: var(--navy); font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+  .stop-timer-sub { font-size: 12px; color: var(--slate); margin-top: 2px; }
+
+  /* ── LOG ── */
+  .log-section { margin-top: 16px; }
+  .log-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--slate);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .log-list { display: flex; flex-direction: column; gap: 6px; }
+  .log-item {
+    background: white;
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    font-size: 13px;
+  }
+  .log-icon { font-size: 18px; flex-shrink: 0; }
+  .log-body { flex: 1; }
+  .log-body b { display: block; font-weight: 700; color: var(--text); }
+  .log-body small { color: var(--slate); font-size: 11px; }
+  .log-esito {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+  .log-esito.ok { background: var(--green-light); color: var(--green); }
+  .log-esito.fail { background: var(--red-light); color: var(--red); }
+  .log-esito.open { background: var(--amber-light); color: var(--amber); }
+
+  /* ── UNDO ── */
+  .btn-undo {
+    width: 100%;
+    padding: 12px;
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--slate);
+    cursor: pointer;
+    margin-bottom: 10px;
+    -webkit-user-select: none;
+  }
+  .btn-undo:active { background: var(--slate-light); }
+
+  /* ── RIEPILOGO ── */
+  .recap-card {
+    background: white;
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+  }
+  .recap-title { font-size: 15px; font-weight: 800; color: var(--navy); margin-bottom: 12px; }
+  .recap-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .recap-row:last-child { border-bottom: none; }
+  .recap-row .lbl { color: var(--slate); }
+  .recap-row .val { font-weight: 700; color: var(--text); }
+  .recap-row .val.green { color: var(--green); }
+  .recap-row .val.red { color: var(--red); }
+
+  .btn-export {
+    width: 100%;
+    padding: 17px;
+    background: var(--green);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+    -webkit-user-select: none;
+  }
+  .btn-export:active { filter: brightness(0.9); }
+
+  .btn-nuovogiro {
+    width: 100%;
+    padding: 14px;
+    background: white;
+    border: 2px solid var(--navy);
+    color: var(--navy);
+    border-radius: var(--radius);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-user-select: none;
+  }
+  .btn-nuovogiro:active { background: var(--slate-light); }
+
+  /* ── NOTE INPUT ── */
+  .note-inline {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    background: white;
+    margin-bottom: 10px;
+    outline: none;
+  }
+  .note-inline:focus { border-color: var(--amber); }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--navy);
+    color: white;
+    padding: 12px 22px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 999;
+    transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+    white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+  .sending-overlay {
+    position: fixed; inset: 0; background: rgba(27,42,74,0.85);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 200; color: white; font-size: 16px; font-weight: 700; gap: 14px;
+  }
+  .spinner {
+    width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3);
+    border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-logo">GLS <span>Field</span> Timer</div>
+  <div class="header-status" id="header-status">Nessun giro attivo</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- SENDING OVERLAY -->
+<div class="sending-overlay" id="sending-overlay" style="display:none">
+  <div class="spinner"></div>
+  <div>Invio dati in corso…</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     SCREEN 1 — SETUP
+══════════════════════════════════════════════ -->
+<div class="screen active" id="screen-setup">
+  <div style="padding-top:8px">
+    <div class="setup-title">Nuovo giro</div>
+    <div class="setup-sub">Compila prima di partire dal magazzino</div>
+
+    <div class="field-group">
+      <div class="field-label">Data</div>
+      <input class="field-input" type="date" id="inp-data">
+    </div>
+    <div class="field-group">
+      <div class="field-label">Codice Zona</div>
+      <input class="field-input" type="text" id="inp-zona" placeholder="es. B4" autocomplete="off" style="text-transform:uppercase">
+    </div>
+    <div class="field-group">
+      <div class="field-label">PDA Autista</div>
+      <input class="field-input" type="text" id="inp-pda" placeholder="es. 042" autocomplete="off">
+    </div>
+    <div class="field-group">
+      <div class="field-label">Nome Autista</div>
+      <input class="field-input" type="text" id="inp-autista" placeholder="Cognome Nome" autocomplete="off">
+    </div>
+
+    <button class="btn-start" onclick="startSetup()">▶ INIZIA GIRO</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     SCREEN 2 — GIRO ATTIVO
+══════════════════════════════════════════════ -->
+<div class="screen" id="screen-giro">
+
+  <!-- Session bar -->
+  <div class="session-bar" id="session-bar"></div>
+
+  <!-- Fase badge -->
+  <div class="fase-badge attesa" id="fase-badge">⏳ In attesa di partenza</div>
+
+  <!-- Live stats -->
+  <div class="live-stats">
+    <div class="stat-card">
+      <div class="stat-val" id="stat-cons">0</div>
+      <div class="stat-lbl">Consegne</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-rit">0</div>
+      <div class="stat-lbl">Ritiri</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-media">—</div>
+      <div class="stat-lbl">Media min</div>
+    </div>
+  </div>
+
+  <!-- ZONA PULSANTI — cambia in base alla fase -->
+  <div id="action-zone"></div>
+
+  <!-- Log -->
+  <div class="log-section">
+    <div class="log-title">Registro stop</div>
+    <div class="log-list" id="log-list">
+      <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">
+        Nessuno stop registrato
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     SCREEN 3 — RIEPILOGO
+══════════════════════════════════════════════ -->
+<div class="screen" id="screen-recap">
+  <div class="setup-title" style="margin-bottom:4px">Riepilogo giro</div>
+  <div class="setup-sub" id="recap-sub"></div>
+
+  <div class="recap-card" id="recap-lead"></div>
+  <div class="recap-card" id="recap-consegne"></div>
+  <div class="recap-card" id="recap-ritiri"></div>
+
+  <button class="btn-export" onclick="inviaGoogleSheet()">📤 Invia al Google Sheet</button>
+  <button class="btn-export" style="background:var(--navy);margin-bottom:10px" onclick="esportaWhatsapp()">💬 Copia riepilogo testo</button>
+  <button class="btn-nuovogiro" onclick="nuovoGiro()">＋ Nuovo giro</button>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxFzzYkVxgdFfgBsPsnP5ULOM09cCKJxWypm3R3wyIcAEhAasKjKZ8EbwsBcWe9kE6uDg/exec';
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+let session = null;
+let stopTimer = null;
+let stopStartTime = null;
+let stopType = null; // 'cons' | 'rit'
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+document.getElementById('inp-data').value = new Date().toISOString().slice(0,10);
+
+// ══════════════════════════════════════════════════════════
+// SETUP
+// ══════════════════════════════════════════════════════════
+function startSetup() {
+  const data    = document.getElementById('inp-data').value;
+  const zona    = document.getElementById('inp-zona').value.trim().toUpperCase();
+  const pda     = document.getElementById('inp-pda').value.trim();
+  const autista = document.getElementById('inp-autista').value.trim();
+
+  if (!data || !zona || !pda || !autista) {
+    showToast('⚠️ Compila tutti i campi');
+    return;
+  }
+
+  session = {
+    data, zona, pda, autista,
+    fase: 'attesa', // attesa → partito → stop_open → rientrato
+    oraPartenza: null,
+    oraPrimaConsegna: null,
+    oraUltimaConsegna: null,
+    oraRientro: null,
+    stops: [],   // {tipo, seq, oraStart, oraEnd, durataMin, esito, note}
+    seqCons: 0,
+    seqRit: 0,
+    noteTemp: ''
+  };
+
+  showScreen('screen-giro');
+  renderSessionBar();
+  renderFase();
+  renderActionZone();
+  updateHeaderStatus();
+}
+
+// ══════════════════════════════════════════════════════════
+// AZIONI PRINCIPALI
+// ══════════════════════════════════════════════════════════
+function doPartenza() {
+  session.oraPartenza = nowStr();
+  session.fase = 'partito';
+  showToast('🚚 Partenza registrata — ' + session.oraPartenza);
+  renderFase();
+  renderActionZone();
+  updateHeaderStatus();
+}
+
+function doStartStop(tipo) {
+  // tipo = 'cons' | 'rit'
+  session.fase = 'stop_open';
+  session.currentStop = {
+    tipo,
+    seq: tipo === 'cons' ? ++session.seqCons : ++session.seqRit,
+    oraStart: nowStr(),
+    oraEnd: null,
+    durataMin: null,
+    esito: null,
+    note: ''
+  };
+  stopStartTime = Date.now();
+  stopType = tipo;
+  startStopTimer();
+  renderFase();
+  renderActionZone();
+  updateHeaderStatus();
+}
+
+function doEsitoStop(esito) {
+  // esito = 'OK' | 'KO'
+  const s = session.currentStop;
+  s.oraEnd = nowStr();
+  s.durataMin = Math.round((Date.now() - stopStartTime) / 60000 * 10) / 10;
+  s.esito = esito;
+  s.note = (document.getElementById('note-input') || {}).value || '';
+
+  // Traccia prima/ultima consegna per lead time
+  if (s.tipo === 'cons' && esito === 'OK') {
+    if (!session.oraPrimaConsegna) session.oraPrimaConsegna = s.oraStart;
+    session.oraUltimaConsegna = s.oraStart;
+  }
+
+  session.stops.push({...s});
+  session.currentStop = null;
+  session.fase = 'partito';
+  stopStartTime = null;
+  stopType = null;
+  clearInterval(stopTimer); stopTimer = null;
+
+  renderFase();
+  renderActionZone();
+  renderLog();
+  renderLiveStats();
+  updateHeaderStatus();
+  showToast(esito === 'OK' ? '✅ Stop registrato' : '❌ Fallito registrato');
+}
+
+function doRientro() {
+  session.oraRientro = nowStr();
+  session.fase = 'rientrato';
+  clearInterval(stopTimer);
+  renderFase();
+  renderActionZone();
+  updateHeaderStatus();
+  showToast('🏁 Rientro registrato — ' + session.oraRientro);
+  // Mostra recap dopo 800ms
+  setTimeout(() => buildRecap(), 800);
+}
+
+function doUndo() {
+  if (!session || !session.stops.length) { showToast('Nessuno stop da annullare'); return; }
+  const last = session.stops.pop();
+  // Ripristina seq
+  if (last.tipo === 'cons') session.seqCons--;
+  else session.seqRit--;
+  // Ripristina prima/ultima consegna
+  if (last.tipo === 'cons' && last.esito === 'OK') {
+    const consOk = session.stops.filter(s => s.tipo === 'cons' && s.esito === 'OK');
+    session.oraPrimaConsegna = consOk.length ? consOk[0].oraStart : null;
+    session.oraUltimaConsegna = consOk.length ? consOk[consOk.length-1].oraStart : null;
+  }
+  renderLog();
+  renderLiveStats();
+  showToast('↩️ Ultimo stop annullato');
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════════
+function renderFase() {
+  const el = document.getElementById('fase-badge');
+  const map = {
+    attesa:    ['attesa',   '⏳ In attesa di partenza'],
+    partito:   ['in-giro',  '🚚 Giro in corso'],
+    stop_open: ['stop-open','⏱ Stop aperto — registra esito'],
+    rientrato: ['rientrato','🏁 Rientrato in magazzino']
+  };
+  const [cls, txt] = map[session.fase] || ['attesa',''];
+  el.className = 'fase-badge ' + cls;
+  el.textContent = txt;
+}
+
+function renderSessionBar() {
+  document.getElementById('session-bar').innerHTML =
+    `<div class="session-pill"><span>Data</span> ${session.data}</div>` +
+    `<div class="session-pill"><span>Zona</span> ${session.zona}</div>` +
+    `<div class="session-pill"><span>PDA</span> ${session.pda}</div>` +
+    `<div class="session-pill"><span>Autista</span> ${session.autista.split(' ')[0]}</div>`;
+}
+
+function renderActionZone() {
+  const az = document.getElementById('action-zone');
+  const f = session.fase;
+
+  if (f === 'attesa') {
+    az.innerHTML = `
+      <button class="big-btn navy" onclick="doPartenza()">🚚 PARTENZA DAL MAGAZZINO</button>
+    `;
+  }
+  else if (f === 'partito') {
+    az.innerHTML = `
+      <div class="btn-row two">
+        <button class="sm-btn green" onclick="doStartStop('cons')">
+          <span class="sm-icon">📦</span>CONSEGNA
+        </button>
+        <button class="sm-btn purple" onclick="doStartStop('rit')">
+          <span class="sm-icon">🔄</span>RITIRO
+        </button>
+      </div>
+      <button class="big-btn red" onclick="doRientro()">🏁 RIENTRO IN MAGAZZINO</button>
+      <button class="btn-undo" onclick="doUndo()">↩️ Annulla ultimo stop</button>
+    `;
+  }
+  else if (f === 'stop_open') {
+    const isCons = session.currentStop?.tipo === 'cons';
+    const color = isCons ? 'green' : 'purple';
+    const icon = isCons ? '📦' : '🔄';
+    const label = isCons ? 'CONSEGNA' : 'RITIRO';
+    az.innerHTML = `
+      <div class="stop-timer">
+        <div class="stop-timer-label">${icon} ${label} in corso — stop #${session.currentStop?.seq}</div>
+        <div class="stop-timer-clock" id="stop-clock">0:00</div>
+        <div class="stop-timer-sub">Da quando il driver ha frenato</div>
+      </div>
+      <input class="note-inline" id="note-input" type="text" placeholder="Note opzionali (es. citofono rotto)">
+      <div class="btn-row two">
+        <button class="sm-btn green" onclick="doEsitoStop('OK')">
+          <span class="sm-icon">✅</span>RIUSCITA
+        </button>
+        <button class="sm-btn red" onclick="doEsitoStop('KO')">
+          <span class="sm-icon">❌</span>FALLITA
+        </button>
+      </div>
+    `;
+    // Riavvia timer UI
+    updateStopClock();
+  }
+  else if (f === 'rientrato') {
+    az.innerHTML = `
+      <button class="big-btn navy" onclick="buildRecap()">📋 VEDI RIEPILOGO</button>
+    `;
+  }
+}
+
+function renderLog() {
+  const el = document.getElementById('log-list');
+  if (!session.stops.length) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">Nessuno stop registrato</div>';
+    return;
+  }
+  el.innerHTML = [...session.stops].reverse().map(s => {
+    const icon = s.tipo === 'cons' ? '📦' : '🔄';
+    const label = s.tipo === 'cons' ? 'Consegna' : 'Ritiro';
+    const esitoClass = s.esito === 'OK' ? 'ok' : 'fail';
+    const esitoTxt = s.esito === 'OK' ? '✓ OK' : '✗ KO';
+    const duraTxt = s.durataMin != null ? s.durataMin + ' min' : '—';
+    const noteTxt = s.note ? ` · ${s.note}` : '';
+    return `
+      <div class="log-item">
+        <div class="log-icon">${icon}</div>
+        <div class="log-body">
+          <b>${label} #${s.seq} — ${s.oraStart}→${s.oraEnd}</b>
+          <small>${duraTxt}${noteTxt}</small>
+        </div>
+        <div class="log-esito ${esitoClass}">${esitoTxt}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderLiveStats() {
+  const consOk = session.stops.filter(s => s.tipo === 'cons' && s.esito === 'OK').length;
+  const ritOk  = session.stops.filter(s => s.tipo === 'rit'  && s.esito === 'OK').length;
+  const durate = session.stops.filter(s => s.durataMin != null).map(s => s.durataMin);
+  const media  = durate.length ? (durate.reduce((a,b)=>a+b,0)/durate.length).toFixed(1) : '—';
+  document.getElementById('stat-cons').textContent = consOk;
+  document.getElementById('stat-rit').textContent  = ritOk;
+  document.getElementById('stat-media').textContent = media;
+}
+
+// ══════════════════════════════════════════════════════════
+// STOP TIMER
+// ══════════════════════════════════════════════════════════
+function startStopTimer() {
+  clearInterval(stopTimer);
+  stopTimer = setInterval(updateStopClock, 1000);
+}
+
+function updateStopClock() {
+  const el = document.getElementById('stop-clock');
+  if (!el || !stopStartTime) return;
+  const elapsed = Math.floor((Date.now() - stopStartTime) / 1000);
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  el.textContent = m + ':' + String(s).padStart(2,'0');
+}
+
+// ══════════════════════════════════════════════════════════
+// RECAP
+// ══════════════════════════════════════════════════════════
+function buildRecap() {
+  const s = session;
+  document.getElementById('recap-sub').textContent = s.data + ' · Zona ' + s.zona + ' · ' + s.autista;
+
+  // Lead time
+  const ltAndata = s.oraPartenza && s.oraPrimaConsegna
+    ? diffMin(s.oraPartenza, s.oraPrimaConsegna) : null;
+  const ltRitorno = s.oraUltimaConsegna && s.oraRientro
+    ? diffMin(s.oraUltimaConsegna, s.oraRientro) : null;
+
+  document.getElementById('recap-lead').innerHTML = `
+    <div class="recap-title">⏱ Lead Time</div>
+    <div class="recap-row"><span class="lbl">Partenza magazzino</span><span class="val">${s.oraPartenza || '—'}</span></div>
+    <div class="recap-row"><span class="lbl">Prima consegna OK</span><span class="val">${s.oraPrimaConsegna || '—'}</span></div>
+    <div class="recap-row"><span class="lbl">Lead time andata</span><span class="val ${ltAndata>30?'red':ltAndata!=null?'green':''}">${ltAndata != null ? ltAndata + ' min' : '—'}</span></div>
+    <div class="recap-row"><span class="lbl">Ultima consegna OK</span><span class="val">${s.oraUltimaConsegna || '—'}</span></div>
+    <div class="recap-row"><span class="lbl">Rientro magazzino</span><span class="val">${s.oraRientro || '—'}</span></div>
+    <div class="recap-row"><span class="lbl">Lead time ritorno</span><span class="val">${ltRitorno != null ? ltRitorno + ' min' : '—'}</span></div>
+  `;
+
+  // Consegne
+  const cons = s.stops.filter(x => x.tipo === 'cons');
+  const consOk = cons.filter(x => x.esito === 'OK');
+  const consKo = cons.filter(x => x.esito === 'KO');
+  const consDurate = consOk.map(x => x.durataMin).filter(x => x != null);
+  const consMedia = consDurate.length ? (consDurate.reduce((a,b)=>a+b,0)/consDurate.length).toFixed(1) : '—';
+  const consMediana = mediana(consDurate);
+
+  document.getElementById('recap-consegne').innerHTML = `
+    <div class="recap-title">📦 Consegne</div>
+    <div class="recap-row"><span class="lbl">Totale tentativi</span><span class="val">${cons.length}</span></div>
+    <div class="recap-row"><span class="lbl">Consegnate (OK)</span><span class="val green">${consOk.length}</span></div>
+    <div class="recap-row"><span class="lbl">Fallite (KO)</span><span class="val ${consKo.length>0?'red':''}">${consKo.length}</span></div>
+    <div class="recap-row"><span class="lbl">DCR campo</span><span class="val">${cons.length ? Math.round(consOk.length/cons.length*100) + '%' : '—'}</span></div>
+    <div class="recap-row"><span class="lbl">Tempo medio per stop</span><span class="val">${consMedia} min</span></div>
+    <div class="recap-row"><span class="lbl">Mediana</span><span class="val">${consMediana != null ? consMediana + ' min' : '—'}</span></div>
+  `;
+
+  // Ritiri
+  const rits = s.stops.filter(x => x.tipo === 'rit');
+  const ritOk = rits.filter(x => x.esito === 'OK');
+  const ritKo = rits.filter(x => x.esito === 'KO');
+  const ritDurate = ritOk.map(x => x.durataMin).filter(x => x != null);
+  const ritMedia = ritDurate.length ? (ritDurate.reduce((a,b)=>a+b,0)/ritDurate.length).toFixed(1) : '—';
+
+  document.getElementById('recap-ritiri').innerHTML = `
+    <div class="recap-title">🔄 Ritiri</div>
+    <div class="recap-row"><span class="lbl">Totale tentativi</span><span class="val">${rits.length}</span></div>
+    <div class="recap-row"><span class="lbl">Riusciti (OK)</span><span class="val ${ritOk.length>0?'green':''}">${ritOk.length}</span></div>
+    <div class="recap-row"><span class="lbl">Falliti (KO)</span><span class="val ${ritKo.length>0?'red':''}">${ritKo.length}</span></div>
+    <div class="recap-row"><span class="lbl">Tempo medio per ritiro</span><span class="val">${ritMedia} min</span></div>
+  `;
+
+  showScreen('screen-recap');
+}
+
+// ══════════════════════════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════════════════════════
+async function inviaGoogleSheet() {
+  document.getElementById('sending-overlay').style.display = 'flex';
+  try {
+    const payload = {
+      data: session.data,
+      zona: session.zona,
+      pda: session.pda,
+      autista: session.autista,
+      stops: session.stops
+    };
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    showToast('✅ Dati inviati al Google Sheet!');
+  } catch(e) {
+    showToast('❌ Errore invio — usa copia testo');
+  }
+  document.getElementById('sending-overlay').style.display = 'none';
+}
+
+function esportaWhatsapp() {
+  const s = session;
+  const cons = s.stops.filter(x => x.tipo === 'cons');
+  const consOk = cons.filter(x => x.esito === 'OK');
+  const rits = s.stops.filter(x => x.tipo === 'rit');
+  const ritOk = rits.filter(x => x.esito === 'OK');
+  const consDurate = consOk.map(x => x.durataMin).filter(x=>x!=null);
+  const consMedia = consDurate.length ? (consDurate.reduce((a,b)=>a+b,0)/consDurate.length).toFixed(1) : '—';
+  const ltAndata = s.oraPartenza && s.oraPrimaConsegna ? diffMin(s.oraPartenza, s.oraPrimaConsegna) : '—';
+  const ltRitorno = s.oraUltimaConsegna && s.oraRientro ? diffMin(s.oraUltimaConsegna, s.oraRientro) : '—';
+
+  const txt = [
+    '📊 FIELD TIMING — GLS E3',
+    `Data: ${s.data} | Zona: ${s.zona} | PDA: ${s.pda} | Autista: ${s.autista}`,
+    '',
+    '⏱ LEAD TIME',
+    `Partenza: ${s.oraPartenza||'—'} → Prima cons: ${s.oraPrimaConsegna||'—'} = ${ltAndata} min`,
+    `Ultima cons: ${s.oraUltimaConsegna||'—'} → Rientro: ${s.oraRientro||'—'} = ${ltRitorno} min`,
+    '',
+    '📦 CONSEGNE',
+    `Totale: ${cons.length} | OK: ${consOk.length} | KO: ${cons.length-consOk.length} | DCR campo: ${cons.length?Math.round(consOk.length/cons.length*100)+'%':'—'}`,
+    `Tempo medio stop: ${consMedia} min`,
+    '',
+    '🔄 RITIRI',
+    `Totale: ${rits.length} | OK: ${ritOk.length} | KO: ${rits.length-ritOk.length}`,
+    '',
+    '📋 DETTAGLIO STOP',
+    ...s.stops.map(x => `${x.tipo==='cons'?'📦':'🔄'} #${x.seq} ${x.oraStart}→${x.oraEnd} ${x.durataMin}min [${x.esito}]${x.note?' '+x.note:''}`)
+  ].join('\n');
+
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(() => showToast('📋 Copiato negli appunti!'));
+  } else {
+    // Fallback per mobile
+    const ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('📋 Copiato negli appunti!');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════════════════════
+function nowStr() {
+  const n = new Date();
+  return String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+}
+
+function diffMin(a, b) {
+  // a, b = 'HH:MM'
+  const [ah,am] = a.split(':').map(Number);
+  const [bh,bm] = b.split(':').map(Number);
+  return (bh*60+bm) - (ah*60+am);
+}
+
+function mediana(arr) {
+  if (!arr.length) return null;
+  const s = arr.slice().sort((a,b)=>a-b);
+  const m = Math.floor(s.length/2);
+  return s.length%2 ? s[m] : +((s[m-1]+s[m])/2).toFixed(1);
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function updateHeaderStatus() {
+  const el = document.getElementById('header-status');
+  if (!session) { el.innerHTML = 'Nessun giro attivo'; return; }
+  const consOk = session.stops.filter(s=>s.tipo==='cons'&&s.esito==='OK').length;
+  el.innerHTML = `<b>${session.zona}</b> · ${consOk} cons · ${session.fase==='partito'?'🟢 in giro':session.fase==='stop_open'?'⏱ stop':session.fase==='rientrato'?'🏁':'⏳'}`;
+}
+
+function nuovoGiro() {
+  session = null;
+  clearInterval(stopTimer);
+  document.getElementById('inp-zona').value = '';
+  document.getElementById('inp-pda').value = '';
+  document.getElementById('inp-autista').value = '';
+  document.getElementById('inp-data').value = new Date().toISOString().slice(0,10);
+  showScreen('screen-setup');
+  updateHeaderStatus();
+}
+</script>
+</body>
+</html>
