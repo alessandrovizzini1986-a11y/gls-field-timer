@@ -399,6 +399,7 @@ ZONA_PROBLEMI.forEach(p => {
     zonaChecks[p] = !zonaChecks[p];
     div.classList.toggle('checked', zonaChecks[p]);
     updateZonaBtn();
+    persist();
   };
   zg.appendChild(div);
 });
@@ -459,6 +460,7 @@ function startSetup() {
   showScreen('screen-giro');
   renderSessBar(); renderFase(); renderAction(); updateHdr();
   document.getElementById('zona-float-btn').style.display = 'flex';
+  persist();
 }
 
 // ════════════════════════════════════════════════════════
@@ -469,6 +471,7 @@ function doPartenza() {
   S.fase = 'partito';
   showToast('🚚 Partenza — ' + S.oraPartenza);
   renderFase(); renderAction(); updateHdr();
+  persist();
 }
 
 function doStartStop(tipo) {
@@ -481,6 +484,7 @@ function doStartStop(tipo) {
   stopStart = Date.now();
   startStopTimer();
   renderFase(); renderAction(); updateHdr();
+  persist();
 }
 
 function doEsitoStop(esito) {
@@ -504,6 +508,7 @@ function doEsitoStop(esito) {
   S.currentStop = null; S.fase='partito';
   stopStart=null; clearInterval(stopTimer); stopTimer=null;
   renderFase(); renderAction(); renderLog(); renderStats(); updateHdr();
+  persist();
   showToast(esito==='OK' ? '✅ Stop OK' : '❌ Fallito registrato');
 }
 
@@ -512,6 +517,7 @@ function doRientro() {
   S.fase = 'rientrato';
   clearInterval(stopTimer);
   renderFase(); renderAction(); updateHdr();
+  persist();
   showToast('🏁 Rientro — ' + S.oraRientro);
   setTimeout(() => buildRecap(), 600);
 }
@@ -525,7 +531,7 @@ function doUndo() {
     S.oraPrimaConsegna = ok.length ? ok[0].oraStart : null;
     S.oraUltimaConsegna = ok.length ? ok[ok.length-1].oraStart : null;
   }
-  renderLog(); renderStats(); showToast('↩️ Ultimo stop annullato');
+  renderLog(); renderStats(); persist(); showToast('↩️ Ultimo stop annullato');
 }
 
 // ════════════════════════════════════════════════════════
@@ -594,6 +600,14 @@ function renderAction() {
         <button class="sm-btn" style="background:var(--red);color:#fff" onclick="doEsitoStop('KO')"><span class="ic">❌</span>FALLITA</button>
       </div>`;
 
+    // ripristina eventuali valori dello stop in corso (dopo un ripristino sessione)
+    if (S.currentStop?.noteStop) {
+      const ni = document.getElementById('note-stop-input'); if (ni) ni.value = S.currentStop.noteStop;
+    }
+    if (S.currentStop?.causale) {
+      document.querySelector(`.caus-btn[data-causale="${S.currentStop.causale}"]`)?.classList.add('selected');
+    }
+
     updateStopClock();
   }
   else if (f==='rientrato') {
@@ -604,6 +618,7 @@ function renderAction() {
 function selCausale(btn) {
   document.querySelectorAll('.caus-btn').forEach(b=>b.classList.remove('selected'));
   btn.classList.add('selected');
+  persist();
 }
 
 function renderStats() {
@@ -795,6 +810,7 @@ async function inviaSheet() {
       stops: S.stops
     };
     await fetch(SCRIPT_URL, {method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    clearPersist(); // inviato con successo: rimuove il backup locale
     showToast('✅ Dati inviati!');
   } catch(e) { showToast('❌ Errore — usa copia testo'); }
   document.getElementById('sending-ov').style.display='none';
@@ -874,10 +890,134 @@ function updateHdr() {
   const cKo=S.stops.filter(s=>s.tipo==='cons'&&s.esito==='KO').length;
   el.innerHTML=`<b>${S.zona}</b> · ${cOk}✓ ${cKo>0?cKo+'✗ ':''}· ${S.fase==='partito'?'🟢':S.fase==='stop_open'?'⏱':S.fase==='rientrato'?'🏁':'⏳'}`;
 }
+
+// ════════════════════════════════════════════════════════
+// PERSISTENZA LOCALE — auto-salvataggio e ripristino del giro
+// I dati del giro restano salvati nel browser anche dopo la
+// chiusura, finché non vengono inviati o non si avvia un nuovo giro.
+// ════════════════════════════════════════════════════════
+const STORAGE_KEY = 'gls-field-timer:sessione:v1';
+
+// Raccoglie i campi che NON sono dentro l'oggetto S (sono solo nel DOM)
+function snapshotForm() {
+  return {
+    zonaChecks: {...zonaChecks},
+    zonaNote: document.getElementById('zona-note')?.value || '',
+    valNote:  document.getElementById('val-note')?.value || '',
+    valutazione: VALUTAZIONE_CRITERI.map((c,i) => {
+      const sel = document.querySelector(`input[name="val-${i}"]:checked`);
+      return sel ? sel.value : null;
+    }),
+    azioni: [1,2,3].map(n => ({
+      cosa:   document.getElementById('az'+n+'-cosa')?.value   || '',
+      chi:    document.getElementById('az'+n+'-chi')?.value    || '',
+      quando: document.getElementById('az'+n+'-quando')?.value || ''
+    })),
+    screen: document.querySelector('.screen.active')?.id || 'screen-giro'
+  };
+}
+
+function persist() {
+  try {
+    if (!S) { localStorage.removeItem(STORAGE_KEY); return; }
+    // Cattura i valori live dello stop eventualmente aperto
+    if (S.fase==='stop_open' && S.currentStop) {
+      const ni = document.getElementById('note-stop-input'); if (ni) S.currentStop.noteStop = ni.value;
+      const sc = document.querySelector('.caus-btn.selected'); S.currentStop.causale = sc ? sc.dataset.causale : (S.currentStop.causale||'');
+    }
+    const data = { v:1, savedAt:new Date().toISOString(), stopStart, S, form: snapshotForm() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch(e) { /* storage non disponibile o pieno: ignora silenziosamente */ }
+}
+
+function clearPersist() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+}
+
+// Salvataggio "debounced" per la digitazione nei campi di testo
+let _persistTimer = null;
+function schedulePersist() {
+  if (!S) return;
+  clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(persist, 400);
+}
+
+function restoreIfAny() {
+  let raw;
+  try { raw = localStorage.getItem(STORAGE_KEY); } catch(e) { return; }
+  if (!raw) return;
+  let data;
+  try { data = JSON.parse(raw); } catch(e) { clearPersist(); return; }
+  if (!data || !data.S) return;
+
+  S = data.S;
+  stopStart = data.stopStart || null;
+  const f = data.form || {};
+
+  // Ripristina i campi non presenti in S
+  if (f.zonaChecks) {
+    ZONA_PROBLEMI.forEach(p => {
+      zonaChecks[p] = !!f.zonaChecks[p];
+      document.getElementById('zc-'+p)?.classList.toggle('checked', zonaChecks[p]);
+    });
+  }
+  const zn = document.getElementById('zona-note'); if (zn) zn.value = f.zonaNote || '';
+  const vn = document.getElementById('val-note'); if (vn) vn.value = f.valNote || '';
+  if (Array.isArray(f.valutazione)) {
+    f.valutazione.forEach((v,i) => {
+      if (!v) return;
+      const inp = document.querySelector(`input[name="val-${i}"][value="${v}"]`);
+      if (inp) { inp.checked = true; renderValDots(i); }
+    });
+  }
+  if (Array.isArray(f.azioni)) {
+    f.azioni.forEach((a,idx) => {
+      const n = idx+1;
+      ['cosa','chi','quando'].forEach(k => { const el=document.getElementById('az'+n+'-'+k); if (el) el.value = a[k]||''; });
+    });
+  }
+
+  // Ricostruisci le viste che dipendono da S
+  document.getElementById('zona-float-btn').style.display = (f.screen==='screen-recap') ? 'none' : 'flex';
+  updateZonaBtn();
+  renderSessBar(); renderFase(); renderLog(); renderStats(); renderAction(); updateHdr();
+  if (S.fase==='stop_open' && stopStart) startStopTimer();
+
+  // Vai alla schermata in cui si trovava
+  if (f.screen === 'screen-recap') buildRecap();
+  else showScreen('screen-giro');
+
+  showToast('♻️ Ripristinato giro non inviato del ' + (S.data || '—'));
+}
+
+// Auto-salvataggio su qualsiasi modifica dei campi (testo, radio, checkbox)
+document.addEventListener('input',  schedulePersist);
+document.addEventListener('change', schedulePersist);
+
+// All'avvio: prova a ripristinare un giro non inviato
+restoreIfAny();
 function nuovoGiro() {
-  S=null; clearInterval(stopTimer);
+  if (S && !confirm('Iniziare un nuovo giro?\nI dati del giro attuale non ancora inviati andranno persi.')) return;
+  S=null; clearInterval(stopTimer); stopTimer=null; stopStart=null;
+  clearPersist();
+  resetFormFields();
   document.getElementById('zona-float-btn').style.display='none';
   showScreen('screen-setup'); updateHdr();
+}
+
+// Azzera i campi non in S (valutazione, azioni, note, zona) per ripartire puliti
+function resetFormFields() {
+  ZONA_PROBLEMI.forEach(p => { zonaChecks[p]=false; document.getElementById('zc-'+p)?.classList.remove('checked'); });
+  const zn=document.getElementById('zona-note'); if (zn) zn.value='';
+  const vn=document.getElementById('val-note'); if (vn) vn.value='';
+  VALUTAZIONE_CRITERI.forEach((c,i) => {
+    document.querySelectorAll(`input[name="val-${i}"]`).forEach(r=>{ r.checked=false; });
+    renderValDots(i);
+  });
+  [1,2,3].forEach(n => {
+    ['cosa','chi','quando'].forEach(k => { const el=document.getElementById('az'+n+'-'+k); if (el) el.value=''; });
+  });
+  updateZonaBtn();
 }
 </script>
 </body>
