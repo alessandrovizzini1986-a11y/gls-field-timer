@@ -182,6 +182,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn-nuovogiro{width:100%;padding:13px;background:#fff;border:2px solid var(--navy);color:var(--navy);border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;-webkit-user-select:none}
 .btn-nuovogiro:active{background:var(--slate-l)}
 
+/* AVVISO STORAGE NON DISPONIBILE (es. Safari privato / cookie bloccati) */
+.storage-warn{background:var(--amber-l);border-bottom:2px solid var(--amber);color:#7a4a06;padding:11px 40px 11px 14px;font-size:12.5px;line-height:1.45;position:relative;font-weight:600}
+.storage-warn b{color:#8a1c10}
+.storage-warn .sw-close{position:absolute;top:6px;right:8px;background:none;border:none;font-size:17px;line-height:1;color:#7a4a06;cursor:pointer;padding:4px 8px}
+
 /* TOAST */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--navy);color:#fff;padding:11px 20px;border-radius:30px;font-size:13px;font-weight:600;z-index:999;transition:transform .25s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.25)}
 .toast.show{transform:translateX(-50%) translateY(0)}
@@ -199,6 +204,12 @@ textarea.field-input{min-height:70px;resize:vertical;font-size:14px}
 <div class="hdr">
   <div class="hdr-logo">GLS <span>Field</span> Timer</div>
   <div class="hdr-st" id="hdr-st">Nessun giro attivo</div>
+</div>
+
+<div class="storage-warn" id="storage-warn" style="display:none">
+  <button class="sw-close" onclick="document.getElementById('storage-warn').style.display='none'" aria-label="Chiudi">✕</button>
+  <b>⚠️ Salvataggio automatico non disponibile</b> su questo browser: i dati del giro <b>non verranno conservati</b> se chiudi l'app.<br>
+  Esci dalla <b>Navigazione Privata</b> oppure disattiva <b>«Blocca tutti i cookie»</b> (Impostazioni → Safari → Privacy). Nel frattempo, a fine giro usa <b>«Copia riepilogo testo»</b> o <b>«Invia al Google Sheet»</b>.
 </div>
 
 <div class="toast" id="toast"></div>
@@ -898,6 +909,24 @@ function updateHdr() {
 // ════════════════════════════════════════════════════════
 const STORAGE_KEY = 'gls-field-timer:sessione:v1';
 
+// Verifica se il browser consente davvero di salvare (Safari privato,
+// "Blocca tutti i cookie", ecc. lo impediscono lanciando un errore).
+function storageWorks() {
+  try {
+    const k = '__gls_test__';
+    localStorage.setItem(k, '1');
+    const ok = localStorage.getItem(k) === '1';
+    localStorage.removeItem(k);
+    return ok;
+  } catch(e) { return false; }
+}
+
+// Mostra l'avviso fisso quando il salvataggio non è disponibile
+function showStorageWarning() {
+  const el = document.getElementById('storage-warn');
+  if (el) el.style.display = 'block';
+}
+
 // Raccoglie i campi che NON sono dentro l'oggetto S (sono solo nel DOM)
 function snapshotForm() {
   return {
@@ -927,7 +956,7 @@ function persist() {
     }
     const data = { v:1, savedAt:new Date().toISOString(), stopStart, S, form: snapshotForm() };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch(e) { /* storage non disponibile o pieno: ignora silenziosamente */ }
+  } catch(e) { showStorageWarning(); /* storage bloccato/pieno: avvisa l'utente */ }
 }
 
 function clearPersist() {
@@ -993,6 +1022,9 @@ function restoreIfAny() {
 // Auto-salvataggio su qualsiasi modifica dei campi (testo, radio, checkbox)
 document.addEventListener('input',  schedulePersist);
 document.addEventListener('change', schedulePersist);
+
+// All'avvio: se il salvataggio non è disponibile, avvisa subito l'utente
+if (!storageWorks()) showStorageWarning();
 
 // All'avvio: prova a ripristinare un giro non inviato
 restoreIfAny();
